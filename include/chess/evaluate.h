@@ -31,6 +31,12 @@ private:
     
     // King safety evaluation (can be added later)
     int evaluateKingSafety(const Board& board) const;
+    
+    // Discourage early queen development
+    int evaluateEarlyQueenDevelopment(const Board& board) const;
+    
+    // Evaluate piece development in the opening
+    int evaluatePieceDevelopment(const Board& board) const;
 };
 
 } // namespace chess
