@@ -80,7 +80,7 @@ This project is set up with VSCode configuration files for easy development:
 - Press F5 to build and debug the application
 - Use the CMake Build task to build without debugging
 
-## General Development Workflow
+## General Development Workflow (Use this to get started right away)
 
 When making changes to the C++ code, follow this workflow to recompile and test your changes:
 
