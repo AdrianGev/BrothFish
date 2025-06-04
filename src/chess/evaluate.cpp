@@ -16,6 +16,9 @@ int Evaluator::evaluate(const Board& board) const {
     // score += evaluateKingSafety(board);
     score += evaluateEarlyQueenDevelopment(board);
     score += evaluatePieceDevelopment(board);
+    score += evaluateEarlyKingMovement(board);
+    score += evaluateCastling(board);
+    score += evaluatePawnDoubleMoves(board);
     
     return score;
 }
@@ -376,6 +379,285 @@ int Evaluator::evaluatePieceDevelopment(const Board& board) const {
                         }
                     }
                 }
+            }
+        }
+    }
+    
+    return score;
+}
+
+int Evaluator::evaluateEarlyKingMovement(const Board& board) const {
+    int score = 0;
+    
+    // Define starting positions for kings
+    const Position whiteKingStartPos(4, 0); // e1
+    const Position blackKingStartPos(4, 7); // e8
+    
+    // Check castling rights
+    bool whiteCanCastle = false;
+    bool blackCanCastle = false;
+    
+    // Scan the board to find the kings
+    for (int rank = 0; rank < 8; rank++) {
+        for (int file = 0; file < 8; file++) {
+            Position pos(file, rank);
+            Piece piece = board.getPiece(pos);
+            
+            if (piece.getType() == PieceType::KING) {
+                if (piece.getColor() == Color::WHITE) {
+                    // If white king is not on its starting square
+                    if (pos != whiteKingStartPos) {
+                        // Check if king moved above first rank (rank > 0) but castling might still be possible
+                        if (pos.rank > 0) {
+                            // Heavy penalty for moving king above first rank before castling
+                            // -50 points is a significant penalty (roughly half a pawn)
+                            score -= 50;
+                            
+                            // Additional penalty based on how far the king moved vertically
+                            score -= pos.rank * 10;
+                        }
+                    }
+                } else { // BLACK
+                    // If black king is not on its starting square
+                    if (pos != blackKingStartPos) {
+                        // Check if king moved below last rank (rank < 7) but castling might still be possible
+                        if (pos.rank < 7) {
+                            // Heavy penalty for moving king below last rank before castling
+                            // +50 points is a significant penalty (positive for white's advantage)
+                            score += 50;
+                            
+                            // Additional penalty based on how far the king moved vertically
+                            score += (7 - pos.rank) * 10;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    return score;
+}
+
+int Evaluator::evaluateCastling(const Board& board) const {
+    int score = 0;
+    
+    // Define starting positions for kings and rooks
+    const Position whiteKingStartPos(4, 0);   // e1
+    const Position blackKingStartPos(4, 7);   // e8
+    
+    // Kingside castling positions
+    const Position whiteKingsideCastlePos(6, 0);  // g1
+    const Position blackKingsideCastlePos(6, 7);  // g8
+    
+    // Queenside castling positions
+    const Position whiteQueensideCastlePos(2, 0); // c1
+    const Position blackQueensideCastlePos(2, 7); // c8
+    
+    // Scan the board to find the kings
+    for (int rank = 0; rank < 8; rank++) {
+        for (int file = 0; file < 8; file++) {
+            Position pos(file, rank);
+            Piece piece = board.getPiece(pos);
+            
+            if (piece.getType() == PieceType::KING) {
+                if (piece.getColor() == Color::WHITE) {
+                    // Check if king has castled kingside
+                    if (pos == whiteKingsideCastlePos) {
+                        // Significant bonus for successful castling
+                        score += 40;
+                    }
+                    // Check if king has castled queenside
+                    else if (pos == whiteQueensideCastlePos) {
+                        // Significant bonus for successful castling
+                        score += 40;
+                    }
+                    // If king is still on starting square, give a small bonus for maintaining castling rights
+                    else if (pos == whiteKingStartPos) {
+                        // Check if rooks are still on their starting squares
+                        Piece kingsideRook = board.getPiece(Position(7, 0)); // h1
+                        Piece queensideRook = board.getPiece(Position(0, 0)); // a1
+                        
+                        // Bonus for maintaining kingside castling option
+                        if (!kingsideRook.isEmpty() && kingsideRook.getType() == PieceType::ROOK && 
+                            kingsideRook.getColor() == Color::WHITE) {
+                            score += 15;
+                        }
+                        
+                        // Bonus for maintaining queenside castling option
+                        if (!queensideRook.isEmpty() && queensideRook.getType() == PieceType::ROOK && 
+                            queensideRook.getColor() == Color::WHITE) {
+                            score += 10; // Slightly less bonus for queenside as it's slightly less common
+                        }
+                    }
+                } else { // BLACK
+                    // Check if king has castled kingside
+                    if (pos == blackKingsideCastlePos) {
+                        // Significant bonus for successful castling (negative for white's advantage)
+                        score -= 40;
+                    }
+                    // Check if king has castled queenside
+                    else if (pos == blackQueensideCastlePos) {
+                        // Significant bonus for successful castling (negative for white's advantage)
+                        score -= 40;
+                    }
+                    // If king is still on starting square, give a small bonus for maintaining castling rights
+                    else if (pos == blackKingStartPos) {
+                        // Check if rooks are still on their starting squares
+                        Piece kingsideRook = board.getPiece(Position(7, 7)); // h8
+                        Piece queensideRook = board.getPiece(Position(0, 7)); // a8
+                        
+                        // Bonus for maintaining kingside castling option
+                        if (!kingsideRook.isEmpty() && kingsideRook.getType() == PieceType::ROOK && 
+                            kingsideRook.getColor() == Color::BLACK) {
+                            score -= 15;
+                        }
+                        
+                        // Bonus for maintaining queenside castling option
+                        if (!queensideRook.isEmpty() && queensideRook.getType() == PieceType::ROOK && 
+                            queensideRook.getColor() == Color::BLACK) {
+                            score -= 10; // Slightly less bonus for queenside as it's slightly less common
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    return score;
+}
+
+int Evaluator::evaluatePawnDoubleMoves(const Board& board) const {
+    int score = 0;
+    
+    // Only apply this evaluation in the opening phase (first 10 moves)
+    // We can estimate this by counting the total pieces on the board
+    int pieceCount = 0;
+    for (int rank = 0; rank < 8; rank++) {
+        for (int file = 0; file < 8; file++) {
+            Piece piece = board.getPiece(Position(file, rank));
+            if (!piece.isEmpty()) {
+                pieceCount++;
+            }
+        }
+    }
+    
+    // If we're not in the opening phase (too many pieces missing), return early
+    if (pieceCount < 28) { // 32 pieces at start, allow for a few captures
+        return score;
+    }
+    
+    // Define starting positions for pawns
+    const int whitePawnRank = 1; // 2nd rank
+    const int blackPawnRank = 6; // 7th rank
+    
+    // Center squares (d4, d5, e4, e5)
+    const Position centerSquares[4] = {
+        Position(3, 3), Position(3, 4), Position(4, 3), Position(4, 4)
+    };
+    
+    // Track pawns that have moved more than once
+    for (int file = 0; file < 8; file++) {
+        // Check white pawns
+        bool whitePawnFound = false;
+        
+        // Check each rank to see if this file's pawn has moved
+        for (int rank = 0; rank < 8; rank++) {
+            Position pos(file, rank);
+            Piece piece = board.getPiece(pos);
+            
+            if (!piece.isEmpty() && piece.getType() == PieceType::PAWN && piece.getColor() == Color::WHITE) {
+                whitePawnFound = true;
+                
+                // Check if the pawn has moved from its starting position
+                if (rank > whitePawnRank) {
+                    // Check if the pawn has moved more than once
+                    // A pawn on rank 3 (index 2) could have moved there in one move (e2-e4)
+                    // But a pawn on rank 4 (index 3) or higher must have moved multiple times
+                    if (rank > whitePawnRank + 2) {
+                        // Check if the pawn is under attack - if so, we don't penalize movement
+                        bool isUnderAttack = board.isUnderAttack(pos, Color::BLACK);
+                        
+                        if (!isUnderAttack) {
+                            // Base penalty for moving a pawn twice
+                            score -= 20;
+                            
+                            // Extra penalty for center pawns (d and e files)
+                            if (file == 3 || file == 4) {
+                                score -= 10;
+                            }
+                            
+                            // Check if this pawn controls any center squares
+                            bool controlsCenter = false;
+                            for (const auto& centerPos : centerSquares) {
+                                // Pawns control squares diagonally in front of them
+                                if (abs(pos.file - centerPos.file) == 1 && 
+                                    centerPos.rank == pos.rank + 1) {
+                                    controlsCenter = true;
+                                    break;
+                                }
+                            }
+                            
+                            // Extra penalty if it lost center control
+                            if (!controlsCenter && (file == 2 || file == 3 || file == 4 || file == 5)) {
+                                score -= 10;
+                            }
+                        }
+                    }
+                }
+                
+                break; // Found the pawn for this file, no need to check further ranks
+            }
+        }
+        
+        // Check black pawns
+        bool blackPawnFound = false;
+        
+        // Check each rank to see if this file's pawn has moved
+        for (int rank = 0; rank < 8; rank++) {
+            Position pos(file, rank);
+            Piece piece = board.getPiece(pos);
+            
+            if (!piece.isEmpty() && piece.getType() == PieceType::PAWN && piece.getColor() == Color::BLACK) {
+                blackPawnFound = true;
+                
+                // Check if the pawn has moved from its starting position
+                if (rank < blackPawnRank) {
+                    // Check if the pawn has moved more than once
+                    // A pawn on rank 4 (index 4) could have moved there in one move (e7-e5)
+                    // But a pawn on rank 3 (index 3) or lower must have moved multiple times
+                    if (rank < blackPawnRank - 2) {
+                        // Check if the pawn is under attack - if so, we don't penalize movement
+                        bool isUnderAttack = board.isUnderAttack(pos, Color::WHITE);
+                        
+                        if (!isUnderAttack) {
+                            // Base penalty for moving a pawn twice
+                            score += 20; // positive for white's advantage
+                            
+                            // Extra penalty for center pawns (d and e files)
+                            if (file == 3 || file == 4) {
+                                score += 10;
+                            }
+                            
+                            // Check if this pawn controls any center squares
+                            bool controlsCenter = false;
+                            for (const auto& centerPos : centerSquares) {
+                                // Pawns control squares diagonally in front of them
+                                if (abs(pos.file - centerPos.file) == 1 && 
+                                    centerPos.rank == pos.rank - 1) {
+                                    controlsCenter = true;
+                                    break;
+                                }
+                            }
+                            
+                            // Extra penalty if it lost center control
+                            if (!controlsCenter && (file == 2 || file == 3 || file == 4 || file == 5)) {
+                                score += 10;
+                            }
+                        }
+                    }
+                }
+                
+                break; // Found the pawn for this file, no need to check further ranks
             }
         }
     }

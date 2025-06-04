@@ -37,6 +37,18 @@ private:
     
     // Evaluate piece development in the opening
     int evaluatePieceDevelopment(const Board& board) const;
+    
+    // Heavily punish moving the king above the first rank before castling
+    int evaluateEarlyKingMovement(const Board& board) const;
+    
+    // Encourage castling and maintaining castling rights
+    int evaluateCastling(const Board& board) const;
+    
+    // Discourage moving the same piece more than twice in the opening
+    int evaluateRepeatedMoves(const Board& board) const;
+    
+    // Discourage moving the same pawn twice in the opening
+    int evaluatePawnDoubleMoves(const Board& board) const;
 };
 
 } // namespace chess

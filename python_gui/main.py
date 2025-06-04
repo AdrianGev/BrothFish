@@ -19,7 +19,7 @@ def main():
     board = Board()  # Standard starting position
     
     # init the engine
-    engine = EngineWrapper(depth=3)  # Search 3 moves ahead
+    engine = EngineWrapper(depth=4)  # Search 4 moves ahead
     
     # game state tracking
     game_over = False
